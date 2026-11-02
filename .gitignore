@@ -1,0 +1,26 @@
+# --- Données : aucune donnée personnelle dans le dépôt public ---
+*.csv
+*.csv.gz
+*.parquet
+data/
+kit/
+
+# --- Secrets Snowflake ---
+.env
+.env.*
+*.p8
+*.pem
+*.key
+connections.toml
+config.toml
+.snowflake/
+snowsql.cnf
+.snowsql/
+
+# --- Divers ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+__pycache__/
+.venv/
