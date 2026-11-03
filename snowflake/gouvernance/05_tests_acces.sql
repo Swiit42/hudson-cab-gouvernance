@@ -9,25 +9,29 @@
 -- Résultat attendu : les valeurs de la ligne séparées par « , », les lignes par « ; »,
 -- « 0 ligne » si aucune ligne, « refusé » si Snowflake répond « does not exist or not authorized ».
 --
+-- Volumes : APRÈS la purge R1 du 03/11/2026 (46 chauffeurs partis avant le 03/11/2021 supprimés).
+-- Avant la purge, le cahier attendait (et obtenait) : 400 chauffeurs ; Queens 161 ; Bronx 122 ; Brooklyn 117.
+-- Les volumes de MART_DRIVER_MONTHLY (914, 290, 365) ne changent pas : aucun service 2025 n'appartenait à un chauffeur purgé.
+--
 -- Valeur masquée : '*****' pour un texte, NULL pour une date ; l'analyste lit le 1er janvier de l'année de naissance.
 -- Les tests de valeurs renvoient une catégorie (clair / masqué / NULL / année), jamais la valeur :
 -- aucune donnée du fichier RH n'est recopiée dans le dépôt.
 -- =====================================================================
 
 -- ===================================================================== Lignes visibles : DIM_DRIVER
--- @test 1 | RH_PAIE | 400
+-- @test 1 | RH_PAIE | 354
 SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER;
--- @test 2 | RESP_DEPOT_QUEENS | 161
+-- @test 2 | RESP_DEPOT_QUEENS | 143
 SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER;
 -- @test 3 | RESP_DEPOT_QUEENS | Queens
 SELECT DISTINCT depot FROM NYC_TAXI.MARTS.DIM_DRIVER;
--- @test 3b | RESP_DEPOT_BRONX | Bronx, 122
+-- @test 3b | RESP_DEPOT_BRONX | Bronx, 106
 SELECT depot, COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER GROUP BY depot;
 -- @test 4 | RESP_DEPOT_BRONX | 290
 SELECT COUNT(*) FROM NYC_TAXI.MARTS.MART_DRIVER_MONTHLY;
 -- @test 4b | RESP_DEPOT_QUEENS | 365
 SELECT COUNT(*) FROM NYC_TAXI.MARTS.MART_DRIVER_MONTHLY;
--- @test 5 | ANALYSTE | 400
+-- @test 5 | ANALYSTE | 354
 SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER;
 -- @test 5b | ANALYSTE | 914
 SELECT COUNT(*) FROM NYC_TAXI.MARTS.MART_DRIVER_MONTHLY;
@@ -37,7 +41,7 @@ SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER;
 SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER;
 -- @test 7b | SYSADMIN | 0
 SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER;
--- @test 7c | TRANSFORMER | 400
+-- @test 7c | TRANSFORMER | 354
 SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER;
 
 -- ===================================================================== Lignes visibles : RAW et référentiel
@@ -45,9 +49,9 @@ SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER;
 SELECT COUNT(*) FROM NYC_TAXI.RAW.DRIVER_SHIFTS;
 -- @test 9 | ANALYSTE | refusé
 SELECT COUNT(*) FROM NYC_TAXI.RAW.DRIVERS;
--- @test 9b | ACCOUNTADMIN | 400, 400
+-- @test 9b | ACCOUNTADMIN | 354, 354
 SELECT COUNT(*), COUNT_IF(first_name = '*****' AND email = '*****') FROM NYC_TAXI.RAW.DRIVERS;
--- @test 9c | ACCOUNTADMIN | 400, 400
+-- @test 9c | ACCOUNTADMIN | 354, 354
 SELECT COUNT(*), COUNT_IF(last_name = '*****' AND birth_date IS NULL) FROM NYC_TAXI.STAGING.STG_RH__DRIVERS;
 -- @test 9d | GOUVERNANCE | refusé
 SELECT COUNT(*) FROM NYC_TAXI.RAW.DRIVERS;
@@ -103,7 +107,7 @@ SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE email LIKE '%@%';
 -- @test L2 | ANALYSTE | 0
 SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE last_name <> '*****';
 -- Les rôles secondaires n'élargissent pas ce que voit la politique (elle ne regarde que le rôle principal)
--- @test L3 | RESP_DEPOT_QUEENS + SECONDARY ALL | 161, 0
+-- @test L3 | RESP_DEPOT_QUEENS + SECONDARY ALL | 143, 0
 USE SECONDARY ROLES ALL;
 SELECT COUNT(*), COUNT_IF(email <> '*****') FROM NYC_TAXI.MARTS.DIM_DRIVER;
 -- Le responsable du Bronx ne lit pas les services de Queens, même en filtrant dessus
@@ -113,14 +117,14 @@ SELECT COUNT(*) FROM NYC_TAXI.MARTS.MART_DRIVER_MONTHLY WHERE depot = 'Queens';
 -- @test L5 | RESP_DEPOT_BRONX | refusé
 SELECT COUNT(*) FROM NYC_TAXI.GOUVERNANCE.ACCES_DEPOT;
 -- Le dépôt de Brooklyn n'a pas de responsable : seuls la paie et l'analyste le voient
--- @test L6 | RH_PAIE | 117
+-- @test L6 | RH_PAIE | 105
 SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE depot = 'Brooklyn';
 -- Un téléphone vide reste vide pour le responsable (pas de faux masque)
 -- @test L7 | RH_PAIE | 12
 SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE phone IS NULL;
 
 -- ===================================================================== Le pipeline fonctionne toujours (après relance des SQL de marts/)
--- @test 10 | TRANSFORMER | 400, 914
+-- @test 10 | TRANSFORMER | 354, 914
 SELECT (SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER), (SELECT COUNT(*) FROM NYC_TAXI.MARTS.MART_DRIVER_MONTHLY);
 -- @test 11 | RH_PAIE | clair
 SELECT CASE WHEN email LIKE '%@%' THEN 'clair' ELSE 'masqué' END FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE driver_id = 'D0003';

@@ -76,51 +76,62 @@ Les colonnes « indirectes non taguées » restent des données personnelles au 
 
 ## Partie 2 — Fiche de registre (jour 3)
 
-Le registre des activités de traitement décrit ce qu'une organisation fait des données personnelles qu'elle détient. Cette fiche en est une version réduite, limitée à ce qu'un Data Engineer peut renseigner et prouver. La trame complète est celle de la CNIL (lien dans les ressources).
-
-Chaque réponse de la colonne de droite doit pouvoir être vérifiée dans l'entrepôt : indiquez la requête ou le fichier qui le prouve.
+Version réduite du registre des activités de traitement (RGPD, art. 30), limitée à ce qu'un Data Engineer peut renseigner et prouver. Trame complète : CNIL, https://www.cnil.fr/fr/RGPD-le-registre-des-activites-de-traitement. Chaque réponse renvoie à la requête ou au fichier qui la prouve. Mise à jour : 03/11/2026.
 
 ### Le traitement
 
 | Rubrique | Réponse |
 |---|---|
-| Nom du traitement | |
-| Finalité : à quoi servent ces données | |
-| Personnes concernées | |
-| Service responsable des données | |
+| Nom du traitement | Entrepôt du personnel des chauffeurs (domaine RH de l'entrepôt Snowflake `NYC_TAXI`) |
+| Responsable du traitement | Hudson Cab Europe (Paris), qui décide depuis cette année de ce que deviennent ces données (RGPD art. 4.7 ; voir `VEILLE.md`, section 1). Sous-traitant : Snowflake (hébergement, région `AWS_EU_WEST_3`, Paris) |
+| Finalités : à quoi servent ces données | 1. Paie des chauffeurs (base légale : exécution du contrat de travail, art. 6.1 b, et obligations légales, art. 6.1 c). 2. Organisation des dépôts : joindre et planifier les chauffeurs de son dépôt (contrat de travail, art. 6.1 b). 3. Pilotage de l'activité de la flotte par dépôt et par mois (intérêt légitime, art. 6.1 f — à valider par le DPO, `VEILLE.md` section 5) |
+| Personnes concernées | Chauffeurs de taxi de Hudson Cab Partners, en poste ou partis depuis moins de 5 ans (354 au 03/11/2026, après purge) |
+| Service responsable des données | Service RH (source du fichier, rectification) ; équipe data de Hudson Cab Europe (entrepôt, règles) |
 
 ### Les données
 
 | Catégorie de données | Colonnes concernées | Tables où elles se trouvent |
 |---|---|---|
-| Identité | | |
-| Coordonnées | | |
-| Vie professionnelle | | |
+| Identité | `first_name`, `last_name`, `driver_name` (calculée), `birth_date`, `driver_id` | `RAW.DRIVERS`, `MARTS.DIM_DRIVER`, `MARTS.MART_DRIVER_MONTHLY` (`driver_name`, `driver_id`), vue `STAGING.STG_RH__DRIVERS` |
+| Coordonnées | `email`, `phone` | `RAW.DRIVERS`, `MARTS.DIM_DRIVER`, vue `STAGING.STG_RH__DRIVERS` |
+| Identifiant officiel | `tlc_license_number` | `RAW.DRIVERS`, `MARTS.DIM_DRIVER` |
+| Vie professionnelle | `depot`, `hire_date`, `end_date`, `is_active`, `tenure_years` ; activité : `shift_date`, `start_hour`, `hours_worked`, `trips_count`, `revenue_usd` | `RAW.DRIVERS`, `RAW.DRIVER_SHIFTS`, `MARTS.DIM_DRIVER`, `MARTS.MART_DRIVER_MONTHLY` |
+
+Preuve : `SELECT * FROM NYC_TAXI.GOUVERNANCE.V_CATALOGUE WHERE donnee_personnelle IS NOT NULL;` (lisible par `ANALYSTE`) ; fiches de `snowflake/rh/catalogue/`.
 
 ### Qui y accède
 
 | Rôle | Ce qu'il voit | Pourquoi il en a besoin | Preuve (requête ou test) |
 |---|---|---|---|
-| | | | |
+| `RH_PAIE` | Tous les dépôts, toutes les colonnes en clair ; pas `RAW` | Établir la paie, les déclarations, vérifier la licence | `05_tests_acces.sql` : tests 1, 8, V1, V5 |
+| `RESP_DEPOT_QUEENS`, `RESP_DEPOT_BRONX` | Leur dépôt seulement ; nom, prénom, téléphone en clair ; e-mail et licence `*****`, date de naissance `NULL` | Joindre et planifier leurs chauffeurs | tests 2, 3, 3b, 4, V2, V3, V6, L3, L4 |
+| `ANALYSTE` | Tous les dépôts, tout `MARTS` ; identifiants directs `*****`, année de naissance seulement ; `driver_id` en clair | Analyser l'activité sans nommer personne | tests 5, 5b, 9, V4, V7, L1, L2 |
+| `TRANSFORMER` (rôle des outils) | Tout, en clair | Charger, purger, contrôler, reconstruire (sinon il recopierait des masques) | tests 7c, 10, 11b |
+| `GOUVERNANCE` | Rien (aucun `SELECT`) ; écrit les règles | Séparation des pouvoirs | tests 6, 9d |
+| `ACCOUNTADMIN`, `SYSADMIN` | 0 ligne dans `MARTS` ; `RAW` avec colonnes personnelles masquées | Administrer, pas lire | tests 7, 7b, 9 bis, 9c |
+
+Cahier complet et résultats : `docs/ACCES.md` (37 / 37 verts, y compris après une exécution des tâches planifiées).
 
 ### Combien de temps
 
 | Règle | Comment elle est appliquée | Preuve |
 |---|---|---|
-| R1 : suppression 5 ans après la fin du contrat | | |
-| R2 : pas de restauration au-delà de 1 jour | | |
-| R3 : pas de fichier sur le stage | | |
+| R1 : suppression 5 ans après la fin du contrat | `DELETE` des chauffeurs dont `end_date` < aujourd'hui − 5 ans, dans `RAW.DRIVERS`, `RAW.DRIVER_SHIFTS`, `MARTS.DIM_DRIVER` et `MARTS.MART_DRIVER_MONTHLY` ; chaque jour à 6 h (tâche `MARTS.T_PURGE`). Le 03/11/2026 : 46 chauffeurs supprimés (400 → 354), 0 service | `snowflake/rh/purge_rh.sql` (comptage avant / après) ; `taches_rh.sql` ; `TASK_HISTORY` |
+| R2 : pas de restauration au-delà de 1 jour | `DATA_RETENTION_TIME_IN_DAYS = 1` sur les 4 tables de chauffeurs. Preuve que Time Travel relit une ligne supprimée : `SELECT COUNT(*) FROM RAW.DRIVERS BEFORE (STATEMENT => <purge>)` → 400 juste après la purge | `snowflake/rh/conservation_rh.sql` (`retention_time = 1`) ; `purge_rh.sql`, étape 4 |
+| R3 : pas de fichier sur le stage | `COPY INTO … PURGE = TRUE`, puis `REMOVE @RH_STAGE` (un fichier redéposé est ignoré par `COPY` et ne serait pas purgé) | `LIST @NYC_TAXI.RAW.RH_STAGE;` → aucun fichier (`conservation_rh.sql`, étape 3) |
 
-Délai réel entre l'exécution de la purge et la disparition définitive d'une donnée dans Snowflake, en tenant compte de Time Travel et de Fail-safe : ______ jours.
+Délai réel entre l'exécution de la purge et la disparition définitive d'une donnée dans Snowflake, en tenant compte de Time Travel et de Fail-safe : **8 jours** (1 jour de Time Travel, lisible avec `AT`/`BEFORE` par le propriétaire de la table, puis 7 jours de Fail-safe, non lisibles, récupérables seulement par le support Snowflake, non réductibles sur une table permanente). Plus jusqu'à 24 h d'attente de la tâche quotidienne : jusqu'à 9 jours après le 5e anniversaire de la fin du contrat.
 
 ### Comment on le contrôle
 
 | Question | Réponse | Preuve |
 |---|---|---|
-| Peut-on dire qui a lu ces données la semaine dernière ? | | |
-| Sait-on quand une donnée est fausse ? | | |
-| Que se passe-t-il si le rôle des outils est compromis ? | | |
+| Peut-on dire qui a lu ces données la semaine dernière ? | Oui : utilisateur, rôle, table, colonnes lues et requête, sur 7 jours (jusqu'à 3 h de latence). Au 03/11/2026 : lectures de colonnes personnelles par `TRANSFORMER` (dont l'utilisateur `SYSTEM` des tâches), `RH_PAIE`, `ANALYSTE`, `RESP_DEPOT_QUEENS`, `ACCOUNTADMIN` (sur `RAW`, valeurs masquées) et le rôle de démonstration `RESP_DEPOT_BROOKLYN`. Une lecture n'est pas une vue en clair : le masquage s'applique à la lecture | `snowflake/gouvernance/06_audit.sql` (`ACCESS_HISTORY` joint à `QUERY_HISTORY`) ; capture dans `docs/captures/` |
+| Sait-on quand une donnée est fausse ? | Oui : 8 règles mesurées chaque jour sur `RAW` (tâche `T_QUALITE`), une ligne par règle et par exécution dans `QUALITE_RESULTATS`. Au 03/11/2026 : 6 règles en `ALERTE` (licences en double, e-mails invalides, dates incohérentes, dépôts mal écrits, services en double, services trop longs), 2 `OK`. La règle bloquante `service_rattache` (25 orphelins, seuil 50) arrête la reconstruction de `MARTS` si elle dépasse : prouvé en abaissant le seuil à 10 (`T_QUALITE` en échec, `T_TABLES` non lancée) | `SELECT * FROM NYC_TAXI.GOUVERNANCE.QUALITE_RESULTATS ORDER BY mesure_le DESC;` ; `GOUVERNANCE.QUALITE_REGLES` (énoncé, seuil, gravité) ; `TASK_HISTORY` |
+| Que se passe-t-il si le rôle des outils est compromis ? | Il lit tout en clair (nécessaire au pipeline) et peut retirer un tag de ses tables, donc démasquer une colonne. Il ne peut ni modifier les politiques (propriété de `GOUVERNANCE`) ni changer `ACCES_DEPOT`. Détection : test n° 12 du cahier, audit des `UNSET TAG` et des lectures de `SYSTEM` hors de 6 h. Réponse : révoquer `TRANSFORMER` à l'utilisateur concerné, rejouer le catalogue depuis Git | `docs/ACCES.md`, partie 1 (« ce que cette carte permet de défaire ») |
 
 ### Limites connues
 
-Ce que votre mise en œuvre ne couvre pas : deux ou trois lignes, sans détour.
+- Les chauffeurs partis depuis moins de 5 ans restent dans la base active, visibles des responsables de dépôt et de l'analyste comme les chauffeurs en poste : la CNIL recommande un archivage intermédiaire à accès restreint (écart principal, `README.md`).
+- L'analyste ne voit aucun identifiant direct, mais `driver_id` + dépôt + date d'embauche + année de naissance permettent, pour un chauffeur rare, une ré-identification indirecte : les données de l'analyste sont pseudonymisées, pas anonymes.
+- `ACCESS_HISTORY` a jusqu'à 3 h de retard ; les fichiers RH déposés sur le poste de l'utilisateur (dossier `data/`, hors Git) échappent à l'entrepôt et doivent être supprimés après chargement.
