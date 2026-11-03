@@ -57,7 +57,18 @@ _À compléter._
 _À compléter (masquer ou supprimer chaque colonne, notation « tous les dépôts », purge des services…)._
 
 ### Écarts entre le contrat et les textes
-_À compléter (voir `docs/VEILLE.md`, section 4)._
+Analyse complète : [`docs/VEILLE.md`](docs/VEILLE.md), section 4. Le RGPD s'applique (art. 3.1 : traitement dans le cadre
+des activités de Hudson Cab Europe, établie à Paris) ; responsable du traitement : Hudson Cab Europe ; sous-traitant : Snowflake ;
+autorité : CNIL. Nous signalons, nous ne réécrivons pas le contrat :
+
+| # | Règle du contrat | Écart | Proposition |
+|---|---|---|---|
+| 1 | Préambule | Rédigé avant le transfert : ni RGPD, ni responsable du traitement, ni finalité, ni base légale (art. 4.7, 6, 30). | Validation du contrat par Hudson Cab Europe et son DPO ; finalités et bases légales proposées dans la note. |
+| 2 | **R1 — 5 ans après la fin du contrat** | **Écart principal.** Pendant 5 ans, un chauffeur parti reste en base active, visible comme un chauffeur en poste (110 sur 400) ; la CNIL demande un archivage intermédiaire à accès restreint après le départ. La durée de 5 ans vient du droit du travail français ; New York impose 6 ans pour les relevés de paie. | Sortir les chauffeurs partis de la vue des responsables de dépôt et de l'analyste ; faire trancher la durée par le juriste. |
+| 3 | R2 — Time Travel 1 jour | Fail-safe : 7 jours de plus, non réductibles sur une table permanente : suppression effective à 8 jours. | Documenter dans le registre (ou tables `TRANSIENT`). |
+| 4 | Matrice des accès | Aucun responsable pour le dépôt de Brooklyn ; `RH_PAIE` voit date de naissance et licence sans besoin démontré. | Signaler ; la table de correspondance permet d'ajouter `RESP_DEPOT_BROOKLYN` sans toucher aux politiques. |
+| 5 | Règles de qualité | Mesurées, mais personne n'est chargé de rectifier (art. 5.1 d, 16). | Désigner le service RH destinataire des alertes. |
+| 6 | Absent du contrat | Information des chauffeurs, droits d'accès et d'effacement, transferts hors UE selon la région Snowflake. | Compléter via le registre (`docs/REGISTRE.md`). |
 
 ### Limites connues
 _À compléter._
