@@ -1,0 +1,71 @@
+-- =====================================================================
+-- 02_roles_metier.sql — les quatre rôles métier et leurs droits de lecture (guide, jour 2, étape 2)
+-- Contrat, section 4 : les rôles métier ne lisent que MARTS ; aucun droit sur RAW ni STAGING.
+-- Ce script donne l'ACCÈS aux tables ; ce que chacun y VOIT (lignes, valeurs) est décidé par les politiques
+-- (03_masquage.sql, 04_acces_depot.sql).
+-- À exécuter en entier avec ACCOUNTADMIN (les droits sur les objets futurs ne peuvent venir que de lui). Rejouable.
+-- =====================================================================
+USE SECONDARY ROLES NONE;
+USE ROLE ACCOUNTADMIN;
+SET moi = '"' || CURRENT_USER() || '"';   -- guillemets : nom d'utilisateur avec des points
+
+-- 1. Les rôles : ni rattachés à SYSADMIN, ni entre eux. Les règles sont portées par des rôles, jamais par des utilisateurs.
+CREATE ROLE IF NOT EXISTS RH_PAIE           COMMENT = 'Service paie : tous les dépôts, toutes les colonnes en clair';
+CREATE ROLE IF NOT EXISTS RESP_DEPOT_QUEENS COMMENT = 'Responsable du dépôt de Queens : ses chauffeurs seulement ; nom, prénom, téléphone en clair';
+CREATE ROLE IF NOT EXISTS RESP_DEPOT_BRONX  COMMENT = 'Responsable du dépôt du Bronx : ses chauffeurs seulement ; nom, prénom, téléphone en clair';
+CREATE ROLE IF NOT EXISTS ANALYSTE          COMMENT = 'Analyste (Priya) : tout MARTS, tous les dépôts, aucun identifiant direct ; année de naissance seulement';
+
+-- Pour pouvoir les tester avec USE ROLE
+GRANT ROLE RH_PAIE           TO USER IDENTIFIER($moi);
+GRANT ROLE RESP_DEPOT_QUEENS TO USER IDENTIFIER($moi);
+GRANT ROLE RESP_DEPOT_BRONX  TO USER IDENTIFIER($moi);
+GRANT ROLE ANALYSTE          TO USER IDENTIFIER($moi);
+
+-- 2. Exécuter des requêtes et entrer dans MARTS : tous les rôles métier
+GRANT USAGE ON WAREHOUSE NYC_TAXI_WH TO ROLE RH_PAIE;
+GRANT USAGE ON WAREHOUSE NYC_TAXI_WH TO ROLE RESP_DEPOT_QUEENS;
+GRANT USAGE ON WAREHOUSE NYC_TAXI_WH TO ROLE RESP_DEPOT_BRONX;
+GRANT USAGE ON WAREHOUSE NYC_TAXI_WH TO ROLE ANALYSTE;
+
+GRANT USAGE ON DATABASE NYC_TAXI TO ROLE RH_PAIE;
+GRANT USAGE ON DATABASE NYC_TAXI TO ROLE RESP_DEPOT_QUEENS;
+GRANT USAGE ON DATABASE NYC_TAXI TO ROLE RESP_DEPOT_BRONX;
+GRANT USAGE ON DATABASE NYC_TAXI TO ROLE ANALYSTE;
+
+GRANT USAGE ON SCHEMA NYC_TAXI.MARTS TO ROLE RH_PAIE;
+GRANT USAGE ON SCHEMA NYC_TAXI.MARTS TO ROLE RESP_DEPOT_QUEENS;
+GRANT USAGE ON SCHEMA NYC_TAXI.MARTS TO ROLE RESP_DEPOT_BRONX;
+GRANT USAGE ON SCHEMA NYC_TAXI.MARTS TO ROLE ANALYSTE;
+
+-- 3. La paie et les responsables de dépôt : les deux tables du domaine RH et le référentiel des dépôts
+GRANT SELECT ON TABLE NYC_TAXI.MARTS.DIM_DRIVER          TO ROLE RH_PAIE;
+GRANT SELECT ON TABLE NYC_TAXI.MARTS.MART_DRIVER_MONTHLY TO ROLE RH_PAIE;
+GRANT SELECT ON TABLE NYC_TAXI.MARTS.DIM_DEPOT           TO ROLE RH_PAIE;
+
+GRANT SELECT ON TABLE NYC_TAXI.MARTS.DIM_DRIVER          TO ROLE RESP_DEPOT_QUEENS;
+GRANT SELECT ON TABLE NYC_TAXI.MARTS.MART_DRIVER_MONTHLY TO ROLE RESP_DEPOT_QUEENS;
+GRANT SELECT ON TABLE NYC_TAXI.MARTS.DIM_DEPOT           TO ROLE RESP_DEPOT_QUEENS;
+
+GRANT SELECT ON TABLE NYC_TAXI.MARTS.DIM_DRIVER          TO ROLE RESP_DEPOT_BRONX;
+GRANT SELECT ON TABLE NYC_TAXI.MARTS.MART_DRIVER_MONTHLY TO ROLE RESP_DEPOT_BRONX;
+GRANT SELECT ON TABLE NYC_TAXI.MARTS.DIM_DEPOT           TO ROLE RESP_DEPOT_BRONX;
+
+-- 4. L'analyste : tout MARTS, aujourd'hui et demain (sinon il perd une table chaque fois qu'un pipeline la recrée)
+GRANT SELECT ON ALL TABLES    IN SCHEMA NYC_TAXI.MARTS TO ROLE ANALYSTE;
+GRANT SELECT ON FUTURE TABLES IN SCHEMA NYC_TAXI.MARTS TO ROLE ANALYSTE;
+
+-- 5. La vue du catalogue (jour 3) : usage du schéma GOUVERNANCE et lecture de ses vues futures, pour chaque rôle métier.
+--    Les tables de ce schéma (ACCES_DEPOT, QUALITE_RESULTATS) restent illisibles pour eux.
+GRANT USAGE ON SCHEMA NYC_TAXI.GOUVERNANCE TO ROLE RH_PAIE;
+GRANT USAGE ON SCHEMA NYC_TAXI.GOUVERNANCE TO ROLE RESP_DEPOT_QUEENS;
+GRANT USAGE ON SCHEMA NYC_TAXI.GOUVERNANCE TO ROLE RESP_DEPOT_BRONX;
+GRANT USAGE ON SCHEMA NYC_TAXI.GOUVERNANCE TO ROLE ANALYSTE;
+GRANT SELECT ON FUTURE VIEWS IN SCHEMA NYC_TAXI.GOUVERNANCE TO ROLE RH_PAIE;
+GRANT SELECT ON FUTURE VIEWS IN SCHEMA NYC_TAXI.GOUVERNANCE TO ROLE RESP_DEPOT_QUEENS;
+GRANT SELECT ON FUTURE VIEWS IN SCHEMA NYC_TAXI.GOUVERNANCE TO ROLE RESP_DEPOT_BRONX;
+GRANT SELECT ON FUTURE VIEWS IN SCHEMA NYC_TAXI.GOUVERNANCE TO ROLE ANALYSTE;
+
+-- 6. Vérifier
+SHOW GRANTS TO ROLE RESP_DEPOT_QUEENS;
+SHOW GRANTS TO ROLE ANALYSTE;
+SHOW FUTURE GRANTS IN SCHEMA NYC_TAXI.GOUVERNANCE;
