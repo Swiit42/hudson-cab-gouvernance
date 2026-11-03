@@ -32,6 +32,11 @@ FILE_FORMAT = (FORMAT_NAME = NYC_TAXI.RAW.CSV_RH)
 ON_ERROR = ABORT_STATEMENT
 PURGE = TRUE;
 
+-- PURGE = TRUE ne retire que les fichiers CHARGÉS. Un fichier déjà chargé puis redéposé est ignoré
+-- (LOAD_SKIPPED, « File was loaded before ») et resterait sur le stage, contre la règle R3 : on vide donc
+-- le stage dans tous les cas.
+REMOVE @NYC_TAXI.RAW.RH_STAGE;
+
 -- Vérifier : 400 chauffeurs, 25 951 services, 0 fichier resté sur le stage
 SELECT
     (SELECT COUNT(*) FROM NYC_TAXI.RAW.DRIVERS)       AS chauffeurs,

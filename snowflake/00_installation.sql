@@ -5,7 +5,9 @@
 -- À exécuter en entier avec ACCOUNTADMIN (Cmd+Maj+Entrée). Rejouable.
 -- =====================================================================
 USE ROLE ACCOUNTADMIN;
-SET moi = CURRENT_USER();
+-- Entre guillemets doubles : un nom d'utilisateur qui contient des points (prenom.nom) serait sinon lu
+-- par IDENTIFIER() comme base.schéma.objet (« Object does not exist »).
+SET moi = '"' || CURRENT_USER() || '"';
 
 -- 1. Le warehouse : la puissance de calcul. La plus petite taille, éteinte après 60 s sans requête.
 CREATE WAREHOUSE IF NOT EXISTS NYC_TAXI_WH

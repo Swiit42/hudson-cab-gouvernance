@@ -9,7 +9,7 @@
 -- ===================================================================== 1. ACCOUNTADMIN
 USE SECONDARY ROLES NONE;
 USE ROLE ACCOUNTADMIN;
-SET moi = CURRENT_USER();
+SET moi = '"' || CURRENT_USER() || '"';   -- guillemets : nom d'utilisateur avec des points
 
 -- Le rôle de gouvernance : ni rattaché à SYSADMIN, ni au rôle des outils.
 -- Il ne reçoit aucun SELECT sur les tables : il écrit les règles sans voir les données.
