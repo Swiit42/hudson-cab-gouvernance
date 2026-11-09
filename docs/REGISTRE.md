@@ -139,9 +139,37 @@ Une fois la purge exécutée, une donnée met **8 jours** à disparaître défin
 
 | Question | Réponse | Preuve |
 |---|---|---|
-| Peut-on dire qui a lu ces données la semaine dernière ? | Oui. Sur 7 jours, on retrouve l'utilisateur, le rôle, la table, les colonnes lues et la requête, avec jusqu'à 3 h de retard. Au 03/11/2026, des colonnes personnelles ont été lues par `TRANSFORMER` (y compris l'utilisateur `SYSTEM` des tâches), `RH_PAIE`, `ANALYSTE`, `RESP_DEPOT_QUEENS`, `ACCOUNTADMIN` (sur `RAW`, où il ne voit que des valeurs masquées) et le rôle de démonstration `RESP_DEPOT_BROOKLYN`. Lire une colonne ne veut pas dire la voir en clair, puisque le masquage s'applique à la lecture. | `snowflake/gouvernance/06_audit.sql` (`ACCESS_HISTORY` joint à `QUERY_HISTORY`), capture dans `docs/captures/` |
+| Peut-on dire qui a lu ces données la semaine dernière ? | Oui. Sur 7 jours, on retrouve l'utilisateur, le rôle, la table, les colonnes lues et la requête, avec jusqu'à 3 h de retard. Au 03/11/2026, des colonnes personnelles ont été lues par `TRANSFORMER` (y compris l'utilisateur `SYSTEM` des tâches), `RH_PAIE`, `ANALYSTE`, `RESP_DEPOT_QUEENS`, `ACCOUNTADMIN` (sur `RAW`, où il ne voit que des valeurs masquées) et le rôle de démonstration `RESP_DEPOT_BROOKLYN`. Lire une colonne ne veut pas dire la voir en clair, puisque le masquage s'applique à la lecture. | `snowflake/gouvernance/06_audit.sql` (`ACCESS_HISTORY` joint à `QUERY_HISTORY`), résultat ci-dessous |
 | Sait-on quand une donnée est fausse ? | Oui. La tâche `T_QUALITE` mesure 8 règles chaque jour sur `RAW` et écrit une ligne par règle et par exécution dans `QUALITE_RESULTATS`. Au 03/11/2026, 2 règles sont `OK` et 6 en `ALERTE` : licences en double, e-mails invalides, dates incohérentes, dépôts mal écrits, services en double et services trop longs. La règle bloquante `service_rattache` compte 25 orphelins pour un seuil de 50. Si elle dépasse son seuil, `MARTS` n'est pas reconstruit. Nous l'avons prouvé en abaissant le seuil à 10 : `T_QUALITE` a échoué et `T_TABLES` n'est pas partie. | `SELECT * FROM NYC_TAXI.GOUVERNANCE.QUALITE_RESULTATS ORDER BY mesure_le DESC;`, `GOUVERNANCE.QUALITE_REGLES` (énoncé, seuil, gravité), `TASK_HISTORY` |
 | Que se passe-t-il si le rôle des outils est compromis ? | Il lit tout en clair, parce que le pipeline en a besoin, et il peut retirer un tag de ses tables, donc démasquer une colonne. En revanche, il ne peut ni modifier les politiques, qui appartiennent à `GOUVERNANCE`, ni changer `ACCES_DEPOT`. On le détecte avec le test n° 12 du cahier et en auditant les `UNSET TAG` ainsi que les lectures de `SYSTEM` en dehors de 6 h. Pour réagir, on retire `TRANSFORMER` à l'utilisateur concerné et on rejoue le catalogue depuis Git. | `docs/ACCES.md`, partie 1 (« Ce que cette carte permet à un rôle de défaire ») |
+
+`QUALITE_RESULTATS` contient 24 lignes : 8 règles mesurées lors de trois exécutions successives des tâches, le 03/11/2026.
+
+| Règle | Anomalies | Seuil | Statut (1re, 2e, 3e exécution) |
+|---|---|---|---|
+| `dates_coherentes` | 8 | 0 | ALERTE, ALERTE, ALERTE |
+| `depot_connu` | 9 | 0 | ALERTE, ALERTE, ALERTE |
+| `duree_plausible` | 14 | 0 | ALERTE, ALERTE, ALERTE |
+| `email_valide` | 7 | 0 | ALERTE, ALERTE, ALERTE |
+| `licence_unique` | 4 | 0 | ALERTE, ALERTE, ALERTE |
+| `service_rattache` (bloquante) | 25 | 50, puis **10**, puis 50 | OK, **ALERTE**, OK |
+| `service_unique` | 18 | 0 | ALERTE, ALERTE, ALERTE |
+| `telephone_renseigne` | 12 | 14,50 | OK, OK, OK |
+
+La deuxième exécution est la preuve du blocage. Avec le seuil de `service_rattache` abaissé à 10, la règle passe en `ALERTE`, `T_QUALITE` échoue et `T_TABLES` ne part pas. La mesure a quand même été enregistrée, puisqu'elle est écrite avant l'erreur. La troisième exécution remet le seuil à 50.
+
+Voici le résultat de la synthèse de `06_audit.sql` (partie 2), lancée le 09/11/2026 avec `ACCOUNTADMIN` sur une fenêtre de 14 jours. Toutes les lectures datent du 03/11/2026. La colonne `user_name` est retirée, parce que le dépôt est public.
+
+| Rôle | Requêtes | Tables lues | Colonnes personnelles lues |
+|---|---|---|---|
+| `TRANSFORMER` | 25 | `MARTS.DIM_DRIVER`, `MARTS.MART_DRIVER_MONTHLY`, `RAW.DRIVERS` | les sept : `FIRST_NAME`, `LAST_NAME`, `EMAIL`, `PHONE`, `BIRTH_DATE`, `TLC_LICENSE_NUMBER`, `DRIVER_NAME` |
+| `ANALYSTE` | 24 | `MARTS.DIM_DRIVER`, `MARTS.MART_DRIVER_MONTHLY` | les sept, mais masquées sauf l'année de naissance |
+| `RH_PAIE` | 24 | `MARTS.DIM_DRIVER`, `MARTS.MART_DRIVER_MONTHLY` | les sept, en clair |
+| `RESP_DEPOT_QUEENS` | 18 | `MARTS.DIM_DRIVER`, `MARTS.MART_DRIVER_MONTHLY` | les sept, e-mail, licence et date de naissance masqués |
+| `ACCOUNTADMIN` | 12 | `RAW.DRIVERS` | `FIRST_NAME`, `LAST_NAME`, `EMAIL`, `BIRTH_DATE`, toutes masquées |
+| `RESP_DEPOT_BROOKLYN` | 1 | `MARTS.DIM_DRIVER` | `LAST_NAME`, `EMAIL` (démonstration d'ajout de dépôt) |
+
+La plupart de ces lectures viennent du cahier de tests, qui interroge chaque colonne avec chaque rôle. Le tableau montre bien la limite de l'audit : `ANALYSTE` apparaît comme lecteur de `EMAIL`, alors qu'il n'a vu que `*****`.
 
 ### Limites connues
 

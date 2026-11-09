@@ -18,7 +18,7 @@ Le traitement porte sur les données de chauffeurs employés à New York. Le gro
 
 | Source | Type | Ce qu'on y surveille | Fréquence | Outil de suivi |
 |---|---|---|---|---|
-| CNIL, actualités (flux https://www.cnil.fr/fr/rss.xml) | officielle (autorité de contrôle française, compétente ici) | référentiels (RH, durées de conservation), recommandations, sanctions liées aux données des salariés | chaque lundi | lecteur RSS (Feedly) avec le flux abonné, capture `docs/captures/veille_abonnement.png` |
+| CNIL, actualités (flux https://www.cnil.fr/fr/rss.xml) | officielle (autorité de contrôle française, compétente ici) | référentiels (RH, durées de conservation), recommandations, sanctions liées aux données des salariés | chaque lundi | lecteur RSS (Feedly), abonnement à mettre en place |
 | CEPD / EDPB, actualités (https://edpb.europa.eu/news/news_fr) | officielle (comité européen) | lignes directrices (transferts, responsables et sous-traitants, art. 3), avis sur les décisions d'adéquation | hebdomadaire | même lecteur RSS |
 | EUR-Lex : RGPD (CELEX 32016R0679) et décision 2023/1795 | officielle (Journal officiel de l'UE) | modification ou invalidation d'un texte, par exemple un recours contre le Data Privacy Framework | mensuelle | alerte « Mon EUR-Lex » sur les deux documents |
 | Légifrance : Code du travail (registre unique du personnel, paie) | officielle (droit français) | durées de conservation imposées à l'employeur | mensuelle | alerte Légifrance sur les articles suivis |

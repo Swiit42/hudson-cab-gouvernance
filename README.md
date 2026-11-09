@@ -62,7 +62,7 @@ Chaque script commence par son `USE ROLE`, se termine par une requête de vérif
 | 20 | `snowflake/gouvernance/06_audit.sql` | ACCOUNTADMIN | rôles ayant lu les colonnes personnelles |
 | — | `snowflake/gouvernance/demo_ajout_depot.sql` (démonstration, bloc par bloc) | ACCOUNTADMIN, GOUVERNANCE | Brooklyn ouvert sans toucher aux politiques |
 
-À la fin du brief, il faut suspendre la tâche racine avec `ALTER TASK NYC_TAXI.MARTS.T_PURGE SUSPEND;`. Une tâche active consomme des crédits chaque jour.
+À la fin du brief, la tâche racine a été suspendue avec `ALTER TASK NYC_TAXI.MARTS.T_PURGE SUSPEND;`, parce qu'une tâche active consomme des crédits chaque jour. Pour relancer la chaîne, il faut réactiver le graphe avec `SELECT SYSTEM$TASK_DEPENDENTS_ENABLE('NYC_TAXI.MARTS.T_PURGE');`.
 
 ### Le chargement
 
@@ -97,7 +97,15 @@ Le stage `RAW.RH_STAGE` est un espace de dépôt interne, chiffré côté serveu
 
 `data/driver_shifts.csv` → `RH_STAGE` → `RAW.DRIVER_SHIFTS` → vue `STAGING.STG_RH__DRIVER_SHIFTS` (doublons retirés, de 25 951 à 25 933 services) → `MARTS.MART_DRIVER_MONTHLY` (agrégé par chauffeur, mois et dépôt).
 
-La capture de l'onglet *Lineage* de `MART_DRIVER_MONTHLY` est dans `docs/captures/`.
+Voici l'onglet *Lineage* de `MART_DRIVER_MONTHLY` dans Snowsight :
+
+![Lignage de MART_DRIVER_MONTHLY](docs/captures/lineage_mart_driver_monthly.png)
+
+Et le graphe des tâches planifiées, avec la racine `T_PURGE` suspendue à la fin du brief :
+
+![Graphe des tâches T_PURGE, T_QUALITE, T_TABLES](docs/captures/taches_graphe.png)
+
+Les résultats de qualité et d'audit sont recopiés en texte dans [`docs/REGISTRE.md`](docs/REGISTRE.md), partie 2, « Comment on le contrôle ».
 
 ### Écarts entre le contrat et les textes
 L'analyse complète est dans la section 4 de [`docs/VEILLE.md`](docs/VEILLE.md). En résumé, le RGPD s'applique (art. 3.1), parce que le traitement se fait dans le cadre des activités de Hudson Cab Europe, établie à Paris. Hudson Cab Europe est responsable du traitement, Snowflake (région Paris) est sous-traitant, et l'autorité compétente est la CNIL. Nous signalons les écarts sans réécrire le contrat.
